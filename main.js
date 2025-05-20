@@ -1,5 +1,10 @@
 
 
+let isMouseDown = false;
+document.addEventListener("mousedown", () => {isMouseDown = true;console.log(true)});
+document.addEventListener("mouseup", () => {isMouseDown = false;console.log(false)});
+var boxes;
+
 class Matrix {
     static matrixBoxIds = [];
 
@@ -15,7 +20,8 @@ class Matrix {
             showGUIControls = false,
             kernel = Kernels.gaussianBlur,
             showPixelValue = false,
-            pixelSize = 20
+            pixelSize = 20,
+            fillStyle = "toggle-pixels"
         } = config;
 
         this.initialValue = initialValue;
@@ -24,6 +30,8 @@ class Matrix {
         this.kernel = kernel;
         this.showPixelValue = showPixelValue;
         this.pixelSize = pixelSize;
+        this.fillStyle = fillStyle;
+        // this.currentDragFunction
     }
 
     makeMatrix() {
@@ -56,9 +64,10 @@ class Matrix {
                 pixel.innerHTML = (this.showPixelValue) ? this.initialValue : "";
                 pixel.style.backgroundColor = this.getColor(this.initialValue);
                 console.log( this.getColor(this.initialValue))
-                pixel.addEventListener('click', e => {
-                    this.togglePixel(e);
-                });
+                // pixel.addEventListener('contextmenu', e => {
+                //     e.preventDefault();
+                //     this.togglePixel(e);
+                // });
 
                 row.appendChild(pixel);
                 matrixRow.push(this.initialValue);
@@ -70,7 +79,52 @@ class Matrix {
         mainBox.appendChild(matrixBox);
 
         if (this.showGUIControls) this.showControls();
+
+        // enabling drag feature 
+        this.updateDragFeature();
+
 }
+
+    updateDragFeature() {
+        boxes = document.querySelectorAll('[id*="Matrix"] [id*="Row"] span');
+        boxes.forEach(box => {
+            box.addEventListener("mousedown", (e) => this.dragPixelsFunction(e));
+            box.addEventListener("mouseover", (e) => {
+                if (isMouseDown) {
+                    this.dragPixelsFunction(e);
+                }
+            });
+        });
+
+    }
+
+    dragPixelsFunction(eventParam) {
+        let dragFunction;
+        switch (this.fillStyle) {
+            case "toggle-pixels":
+                dragFunction = (e) => this.togglePixel(e);
+                break;
+            case "default-pixels":
+                dragFunction = (e) => this.updateColor(e.target.id, this.initialValue);
+                break;
+            case "black-pixels":
+                dragFunction = (e) => this.updateColor(e.target.id, 0);
+                break;
+            case "white-pixels":
+                dragFunction = (e) => this.updateColor(e.target.id, 1);
+                break;
+            default:
+                break;
+        }
+        return dragFunction(eventParam)
+    }
+
+    getPixelColor(id) {
+        if (typeof(id) == "object") {
+            id= this.mainBoxId + id[0] + "," + id[1];
+        }
+        return this.MATRIX[this.getLocation(id)[0]-1][this.getLocation(id)[1]-1];
+    }
 
     showControls() {
         // filter btn
@@ -109,6 +163,13 @@ class Matrix {
         pixelDataVisibilityControl.appendChild(checkbox);
         pixelDataVisibilityControl.appendChild(label);
 
+
+        // Drag Style 
+        const dropdownComponent = UIComponents.createFillWithDropdown((selectedValue) => {
+            console.log("User selected:", selectedValue);
+            this.fillStyle = selectedValue;
+        });
+
         
         // pixel size controls
         let pixelSizeControls = UIComponents.createPixelSizeController(this.resiszePixels.bind(this));
@@ -121,12 +182,13 @@ class Matrix {
         document.getElementById(this.mainBoxId).appendChild(clearBtn);
         document.getElementById(this.mainBoxId).appendChild(pixelDataVisibilityControl);
         document.getElementById(this.mainBoxId).appendChild(pixelSizeControls);
+        document.getElementById(this.mainBoxId).appendChild(dropdownComponent);
     }
 
     updateMatrix(x, y, value) {
         this.MATRIX[x-1][y-1] = value;
-        console.log(this);
-        console.table(this.MATRIX);
+        // console.log(this);
+        // console.table(this.MATRIX);
     }
 
     getLocation(point) {
@@ -148,6 +210,18 @@ class Matrix {
         }
         // console.log(id);
         document.getElementById(id).style.backgroundColor = this.getColor(val);
+
+        if (this.showPixelValue) {
+            document.getElementById(id).innerHTML = val;
+        }
+    }
+
+    updatePixel(id, val) {
+        if (typeof(id) == "object") {
+            id= this.mainBoxId + id[0] + "," + id[1];
+        }
+        document.getElementById(id).style.backgroundColor = this.getColor(val);
+        this.MATRIX[this.getLocation(id)[0]-1][this.getLocation(id)[1]-1] = val;
 
         if (this.showPixelValue) {
             document.getElementById(id).innerHTML = val;
@@ -337,6 +411,44 @@ const UIComponents = {
     return container;
     },
 
+
+    createFillWithDropdown(onChangeCallback) {
+        const wrapper = document.createElement("div");
+        wrapper.style.display = "flex";
+        wrapper.style.alignItems = "center";
+        wrapper.style.gap = "8px";
+        wrapper.style.margin = "4px";
+
+        const label = document.createElement("span");
+        label.textContent = "Set which color to fill color on drag";
+
+        const dropdown = document.createElement("select");
+        dropdown.style.padding = "4px 8px";
+        dropdown.style.fontSize = "0.9rem";
+        dropdown.style.border = "1px solid rgb(144, 0, 96)";
+        dropdown.style.borderRadius = "4px";
+
+        const options = ["Toggle Pixels", "Default Pixels", "Black Pixels", "White Pixels"];
+        options.forEach(opt => {
+            const option = document.createElement("option");
+            option.value = opt.toLowerCase().replace(/\s/g, "-");
+            option.textContent = opt;
+            dropdown.appendChild(option);
+        });
+
+        dropdown.addEventListener("change", (e) => {
+            if (onChangeCallback) onChangeCallback(e.target.value);
+        });
+
+        wrapper.appendChild(label);
+        wrapper.appendChild(dropdown);
+
+        return wrapper;
+},
+
+
+
+
     extractFirstInteger(text) {
     const match = text.match(/\d+/);
     return match ? parseInt(match[0], 10) : (()=> {
@@ -395,29 +507,37 @@ const gaussian5x5 = [
 
 
 
-// var m = new Matrix("root", 11, 11, {padding: 1, showGUIControls: true, showPixelValue: true});
-var m2 = new Matrix("rooti", 11, 11, {padding: 0, initialValue: 0, showGUIControls: true});
-// m.makeMatrix();
-m2.makeMatrix();
-var kernal;
-kernal = [
-    [1/9, 1/9, 1/9],
-    [1/9, 1/9, 1/9],
-    [1/9, 1/9, 1/9]
-]
-kernal = [
-    [1/16, 1/8, 1/16],
-    [1/8, 1/4, 1/8],
-    [1/16, 1/8, 1/16],
-]
+function applyToBox(box){console.log("hello")}
+
+
+var m = new Matrix("root", 11, 11, {padding: 1, showGUIControls: true, showPixelValue: false});
+// var m2 = new Matrix("rooti", 11, 11, {padding: 0, initialValue: 0, showGUIControls: true});
+m.makeMatrix();
+// m2.makeMatrix();
+// var kernal;
+// kernal = [
+//     [1/9, 1/9, 1/9],
+//     [1/9, 1/9, 1/9],
+//     [1/9, 1/9, 1/9]
+// ]
+// kernal = [
+//     [1/16, 1/8, 1/16],
+//     [1/8, 1/4, 1/8],
+//     [1/16, 1/8, 1/16],
+// ]
 kernal = [
     [1, 1, 1],
     [1, -8, 1],
     [1, 1, 1]
 ]
-kernal = Kernels.gaussianBlur
-kernal = gaussian5x5
+// kernal = Kernels.gaussianBlur
+// kernal = gaussian5x5
 // m.convolve(kernal)
 
 
 // makeMatrix("root", 10, 10);
+
+
+
+// export default Matrix
+// export { Kernels }
